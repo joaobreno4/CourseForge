@@ -1,37 +1,33 @@
-name: CI/CD — CourseForge
+name: CI/CD - CourseForge
 
-# ── Gatilhos ─────────────────────────────────────────────────────────────────
 on:
   push:
-    branches: [main]          # Deploy automático só na main
+    branches: [main]
   pull_request:
-    branches: [main]          # CI (lint + build) em todo PR aberto contra a main
-  workflow_dispatch:          # Permite disparo manual pela UI do GitHub
+    branches: [main]
+  workflow_dispatch:
 
-# ── Permissões mínimas (princípio do menor privilégio) ───────────────────────
 permissions:
-  contents: read              # Somente leitura do repositório
-  id-token: write             # Necessário se migrar para OIDC no futuro
+  contents: read
+  id-token: write
 
-# ── Cancela runs anteriores do mesmo branch/PR para economizar minutos ────────
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# ── Variáveis de ambiente globais ─────────────────────────────────────────────
 env:
   NODE_VERSION: "20"
-  BUILD_DIR: "dist/course-forge/browser"
+  BUILD_DIR: dist/course-forge/browser
 
-# ═════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 jobs:
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # JOB 1 — CI: Lint, Test & Build
-  # Roda em todo push e PR. Falha rápido — se o build quebrar, o deploy não executa.
-  # ──────────────────────────────────────────────────────────────────────────
+  # ---------------------------------------------------------------------------
+  # JOB 1 - CI: Lint, Test & Build
+  # Runs on every push and PR. Fast-fail: if the build breaks, deploy is skipped.
+  # ---------------------------------------------------------------------------
   ci:
-    name: Lint · Test · Build
+    name: "Lint / Test / Build"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -43,52 +39,43 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          # Cacheia node_modules com base no package-lock.json
-          # Reduz o tempo de instalação de ~60s para ~5s em runs subsequentes
-          cache: "npm"
+          cache: npm
 
       - name: Install dependencies
+        # npm ci guarantees exact versions from lock file; --prefer-offline uses cache first
         run: npm ci --prefer-offline
-        # --prefer-offline: usa cache local antes de tentar a rede
-        # npm ci (em vez de npm install) garante versões exatas do lock file
 
-      - name: Lint (ESLint)
+      - name: Lint
+        # --if-present skips silently if the lint script is not yet defined
         run: npm run lint --if-present
-        # --if-present evita falha se o script não existir ainda
 
-      - name: Unit tests (Karma headless)
+      - name: Unit tests (ChromeHeadless)
         run: npm test -- --watch=false --browsers=ChromeHeadless --code-coverage
-        # ChromeHeadless roda sem display gráfico no runner Linux
-        continue-on-error: false
 
       - name: Production build
         run: npm run build -- --configuration=production
-        # Gera artefatos otimizados com hashing, tree-shaking e minificação
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: angular-dist-${{ github.sha }}
           path: ${{ env.BUILD_DIR }}
-          # Retém o artefato por 7 dias para inspeção ou re-deploy manual
           retention-days: 7
           if-no-files-found: error
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # JOB 2 — DEPLOY: S3 Sync + CloudFront Invalidation
-  # Só executa se:
-  #   (a) o job "ci" passou com sucesso, E
-  #   (b) o evento é um push direto na branch main
-  #       (PRs não fazem deploy — apenas validam)
-  # ──────────────────────────────────────────────────────────────────────────
+  # ---------------------------------------------------------------------------
+  # JOB 2 - DEPLOY: S3 Sync + CloudFront Invalidation
+  # Runs only when:
+  #   (a) the ci job passed, AND
+  #   (b) the event is a direct push to main (PRs do NOT deploy)
+  # ---------------------------------------------------------------------------
   deploy:
-    name: Deploy → AWS S3 + CloudFront
+    name: "Deploy to AWS (S3 + CloudFront)"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: ci                          # Dependência explícita do job de CI
+    needs: ci
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
-    # Ambiente do GitHub — habilita regras de proteção (aprovadores, wait timer)
     environment:
       name: production
       url: https://${{ secrets.CLOUDFRONT_DOMAIN }}
@@ -99,7 +86,6 @@ jobs:
         with:
           name: angular-dist-${{ github.sha }}
           path: ${{ env.BUILD_DIR }}
-        # Reutiliza o artefato gerado pelo job ci — não faz rebuild
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -107,45 +93,37 @@ jobs:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ secrets.AWS_REGION }}
-          # Para ambientes enterprise, considere migrar para OIDC (sem chaves estáticas):
-          # role-to-assume: arn:aws:iam::ACCOUNT_ID:role/github-actions-deploy
 
-      # ── Sync S3 ──────────────────────────────────────────────────────────
-      # Estratégia de cache em duas fases:
+      # ---------------------------------------------------------------------------
+      # Two-phase S3 sync strategy:
       #
-      # Fase 1 — Assets com hash no nome (ex: main.abc123.js)
-      #   Cache-Control: max-age=31536000, immutable
-      #   O Angular CLI gera hashes únicos por conteúdo; o nome muda a cada build.
-      #   O browser pode cachear por 1 ano com segurança total.
+      # Phase 1 - Hashed assets (e.g. main.abc123.js)
+      #   Cache-Control: max-age=31536000,immutable
+      #   Angular CLI produces content-hashed filenames; safe to cache for 1 year.
       #
-      # Fase 2 — index.html (e arquivos sem hash)
+      # Phase 2 - index.html (entry point, no hash)
       #   Cache-Control: no-cache
-      #   O browser sempre consulta o servidor; o CloudFront invalida o edge cache.
-      #   Garante que o usuário carregue os novos hashes de JS/CSS imediatamente.
-      - name: Sync hashed assets to S3 (cache 1 year)
+      #   Browser always revalidates; ensures users load the new JS/CSS hashes.
+      # ---------------------------------------------------------------------------
+      - name: "S3 sync: hashed assets (cache 1 year)"
         run: |
           aws s3 sync "${{ env.BUILD_DIR }}" "s3://${{ secrets.S3_BUCKET_NAME }}" \
-            --exclude "index.html"                   \
-            --exclude "*.map"                        \
+            --exclude "index.html" \
+            --exclude "*.map" \
             --cache-control "max-age=31536000,immutable" \
             --delete
 
-      - name: Sync index.html and sourcemaps (no-cache)
+      - name: "S3 sync: index.html (no-cache)"
         run: |
           aws s3 sync "${{ env.BUILD_DIR }}" "s3://${{ secrets.S3_BUCKET_NAME }}" \
-            --exclude "*"                            \
-            --include "index.html"                   \
-            --include "*.map"                        \
+            --exclude "*" \
+            --include "index.html" \
+            --include "*.map" \
             --cache-control "no-cache,no-store,must-revalidate"
-        # Source maps ficam no S3 mas sem cache para facilitar debugging de erros
-        # Em produção estrita, adicione --exclude "*.map" para não enviá-los
 
-      # ── CloudFront Invalidation ───────────────────────────────────────────
-      # Após o sync, o S3 já tem os arquivos novos, mas os edge caches do
-      # CloudFront ainda servem os arquivos antigos.
-      # A invalidação de "/*" força todos os PoPs a buscarem novos objetos
-      # na próxima requisição. Custo: as primeiras 1.000 paths/mês são grátis.
-      - name: Invalidate CloudFront edge cache
+      # Invalidation forces all CloudFront PoPs to fetch fresh objects on next request.
+      # First 1,000 paths/month are free.
+      - name: Invalidate CloudFront cache
         run: |
           INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" \
@@ -155,9 +133,6 @@ jobs:
           echo "Invalidation ID: $INVALIDATION_ID"
           echo "INVALIDATION_ID=$INVALIDATION_ID" >> "$GITHUB_ENV"
 
-      # ── Aguarda a invalidação propagar (opcional) ─────────────────────────
-      # Remova este passo se quiser um deploy mais rápido.
-      # Útil quando o próximo passo (ex: smoke test) precisa dos novos arquivos.
       - name: Wait for invalidation to complete
         run: |
           aws cloudfront wait invalidation-completed \
@@ -165,14 +140,14 @@ jobs:
             --id "$INVALIDATION_ID"
         timeout-minutes: 5
 
-      - name: Deploy summary
+      - name: Write deploy summary
         run: |
-          echo "### Deploy concluído com sucesso! " >> "$GITHUB_STEP_SUMMARY"
+          echo "### Deploy successful" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Campo | Valor |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Commit | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Branch | \`${{ github.ref_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Bucket S3 | \`${{ secrets.S3_BUCKET_NAME }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Invalidação CF | \`$INVALIDATION_ID\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| S3 Bucket | \`${{ secrets.S3_BUCKET_NAME }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CF Invalidation | \`$INVALIDATION_ID\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| URL | https://${{ secrets.CLOUDFRONT_DOMAIN }} |" >> "$GITHUB_STEP_SUMMARY"
