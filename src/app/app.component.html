@@ -1,0 +1,46 @@
+<div class="app-shell">
+  <header class="navbar" role="banner">
+    <div class="navbar__inner">
+      <a routerLink="/" class="navbar__brand" aria-label="CourseForge — Início">
+        <div class="navbar__logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#grad)" />
+            <path d="M8 11l8-4 8 4v10l-8 4-8-4V11z" stroke="white" stroke-width="1.5" fill="none" />
+            <path d="M8 11l8 4 8-4" stroke="white" stroke-width="1.5" />
+            <path d="M16 15v10" stroke="white" stroke-width="1.5" />
+            <defs>
+              <linearGradient id="grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#8b5cf6" />
+                <stop offset="100%" stop-color="#6d28d9" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <span class="navbar__name">CourseForge</span>
+      </a>
+
+      <nav class="navbar__nav" role="navigation" aria-label="Navegação principal">
+        <a
+          routerLink="/courses"
+          routerLinkActive="is-active"
+          class="navbar__link"
+          aria-label="Lista de cursos"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          Cursos
+        </a>
+      </nav>
+
+      <a routerLink="/courses/new" class="navbar__cta" aria-label="Criar novo curso">
+        + Novo Curso
+      </a>
+    </div>
+  </header>
+
+  <main class="main-content" id="main-content" role="main">
+    <router-outlet />
+  </main>
+</div>

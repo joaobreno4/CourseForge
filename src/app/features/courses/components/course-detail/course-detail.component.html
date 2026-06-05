@@ -1,0 +1,203 @@
+<div class="page-container">
+
+  <!-- Loading -->
+  @if (isLoading) {
+    <div class="skeleton-page" aria-busy="true" aria-label="Carregando curso">
+      <div class="skeleton skeleton--title"></div>
+      <div class="skeleton skeleton--subtitle"></div>
+      <div class="skeleton skeleton--card"></div>
+      <div class="skeleton skeleton--card"></div>
+    </div>
+  }
+
+  <!-- Error -->
+  @if (!isLoading && loadError) {
+    <div class="error-state">
+      <div class="error-state__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+      </div>
+      <p class="error-state__text">{{ loadError }}</p>
+      <a routerLink="/courses" class="btn btn--ghost">Voltar para lista</a>
+    </div>
+  }
+
+  <!-- Content -->
+  @if (!isLoading && course) {
+    <!-- Header -->
+    <div class="page-header">
+      <a routerLink="/courses" class="back-link" aria-label="Voltar para lista de cursos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <line x1="19" y1="12" x2="5" y2="12" />
+          <polyline points="12 19 5 12 12 5" />
+        </svg>
+        Voltar
+      </a>
+
+      <div class="header-actions">
+        <a [routerLink]="['/courses', course.id, 'edit']" class="btn btn--ghost btn--sm" aria-label="Editar este curso">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+          </svg>
+          Editar
+        </a>
+      </div>
+    </div>
+
+    <!-- Course Hero -->
+    <div class="course-hero">
+      @if (course.thumbnailUrl) {
+        <div class="course-hero__image">
+          <img [src]="course.thumbnailUrl" [alt]="course.name" />
+        </div>
+      }
+
+      <div class="course-hero__content">
+        <span class="category-badge">{{ course.category }}</span>
+        <h1 class="course-hero__title">{{ course.name }}</h1>
+        <p class="course-hero__description">{{ course.description }}</p>
+
+        <div class="course-stats">
+          <div class="stat-card">
+            <span class="stat-card__value">{{ totalModules }}</span>
+            <span class="stat-card__label">Módulos</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card__value">{{ totalLessons }}</span>
+            <span class="stat-card__label">Aulas</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card__value">{{ totalDuration | duration }}</span>
+            <span class="stat-card__label">Duração total</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Curriculum -->
+    <section class="curriculum">
+      <div class="curriculum__header">
+        <h2 class="curriculum__title">Conteúdo do Curso</h2>
+        <div class="curriculum__controls">
+          <button type="button" class="btn btn--ghost btn--xs" (click)="expandAll()" aria-label="Expandir todos os módulos">
+            Expandir tudo
+          </button>
+          <button type="button" class="btn btn--ghost btn--xs" (click)="collapseAll()" aria-label="Recolher todos os módulos">
+            Recolher tudo
+          </button>
+        </div>
+      </div>
+
+      @if (course.modules.length === 0) {
+        <div class="empty-curriculum">
+          <p>Este curso ainda não possui módulos.</p>
+        </div>
+      }
+
+      <div class="modules-list" role="list">
+        @for (module of course.modules; track $index) {
+          <div
+            class="module-item"
+            role="listitem"
+            [class.is-expanded]="isModuleExpanded($index)"
+          >
+            <button
+              type="button"
+              class="module-item__header"
+              (click)="toggleModule($index)"
+              [attr.aria-expanded]="isModuleExpanded($index)"
+              [attr.aria-controls]="'module-body-' + $index"
+            >
+              <div class="module-item__header-left">
+                <div class="module-number" aria-hidden="true">{{ $index + 1 }}</div>
+                <div class="module-item__info">
+                  <span class="module-item__title">{{ module.title }}</span>
+                  @if (module.description) {
+                    <span class="module-item__desc">{{ module.description }}</span>
+                  }
+                </div>
+              </div>
+
+              <div class="module-item__meta">
+                <span class="module-item__stat">
+                  {{ module.lessons.length }} aula{{ module.lessons.length !== 1 ? 's' : '' }}
+                </span>
+                <span class="module-item__stat">
+                  {{ getModuleDuration(module) | duration }}
+                </span>
+                <svg
+                  class="chevron-icon"
+                  [class.rotated]="!isModuleExpanded($index)"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+            </button>
+
+            @if (isModuleExpanded($index)) {
+              <div
+                class="module-item__body"
+                [id]="'module-body-' + $index"
+                role="list"
+              >
+                @if (module.lessons.length === 0) {
+                  <div class="empty-lessons">
+                    <p>Nenhuma aula neste módulo.</p>
+                  </div>
+                }
+
+                @for (lesson of module.lessons; track $index) {
+                  <div class="lesson-item" role="listitem">
+                    <div class="lesson-item__left">
+                      <div class="lesson-play-btn" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                      </div>
+                      <div class="lesson-item__info">
+                        <span class="lesson-item__title">{{ lesson.title }}</span>
+                        @if (lesson.description) {
+                          <span class="lesson-item__desc">{{ lesson.description }}</span>
+                        }
+                      </div>
+                    </div>
+
+                    <div class="lesson-item__right">
+                      @if (lesson.videoUrl) {
+                        <a
+                          [href]="lesson.videoUrl"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="lesson-link"
+                          [attr.aria-label]="'Assistir: ' + lesson.title"
+                          title="Assistir aula"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                            <polyline points="15 3 21 3 21 9" />
+                            <line x1="10" y1="14" x2="21" y2="3" />
+                          </svg>
+                        </a>
+                      }
+                      <span class="lesson-duration">{{ lesson.duration | duration }}</span>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+</div>

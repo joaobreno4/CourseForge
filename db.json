@@ -1,0 +1,54 @@
+{
+  "courses": [
+    {
+      "id": "1",
+      "name": "Angular Avançado com RxJS",
+      "description": "Domine o desenvolvimento Angular com padrões reeativos, Reactive Forms avançados e arquitetura escalável para aplicações enterprise.",
+      "category": "frontend",
+      "thumbnailUrl": "",
+      "modules": [
+        {
+          "id": "m1",
+          "title": "Fundamentos do RxJS",
+          "description": "Observables, operadores e subjects",
+          "lessons": [
+            { "id": "l1", "title": "Introdução ao RxJS", "description": "O que é programação reativa e por que usar RxJS em aplicações Angular.", "duration": 18, "videoUrl": "" },
+            { "id": "l2", "title": "Criando Observables", "description": "Aprenda a criar observables do zero e entenda o ciclo de vida.", "duration": 22, "videoUrl": "" },
+            { "id": "l3", "title": "Operadores Essenciais", "description": "map, filter, switchMap, mergeMap, concatMap — quando usar cada um.", "duration": 35, "videoUrl": "" }
+          ]
+        },
+        {
+          "id": "m2",
+          "title": "Reactive Forms Avançados",
+          "description": "FormGroup, FormArray e validações customizadas",
+          "lessons": [
+            { "id": "l4", "title": "FormGroup e FormControl", "description": "Estrutura base dos Reactive Forms e binding no template.", "duration": 25, "videoUrl": "" },
+            { "id": "l5", "title": "FormArray na prática", "description": "Gerenciando listas dinâmicas de campos com FormArray.", "duration": 30, "videoUrl": "" }
+          ]
+        }
+      ],
+      "createdAt": "2026-06-01T10:00:00.000Z",
+      "updatedAt": "2026-06-01T10:00:00.000Z"
+    },
+    {
+      "id": "2",
+      "name": "Node.js do Zero ao Deploy",
+      "description": "Construa APIs REST robustas com Node.js, Express e TypeScript. Aprenda autenticação JWT, upload de arquivos e deploy em produção.",
+      "category": "backend",
+      "thumbnailUrl": "",
+      "modules": [
+        {
+          "id": "m3",
+          "title": "Configurando o Ambiente",
+          "description": "Node.js, npm, TypeScript e ESLint",
+          "lessons": [
+            { "id": "l6", "title": "Instalação e configuração", "description": "Configurando Node.js com TypeScript e as melhores ferramentas de desenvolvimento.", "duration": 15, "videoUrl": "" },
+            { "id": "l7", "title": "Primeiro servidor Express", "description": "Criando e rodando seu primeiro servidor HTTP com Express.", "duration": 20, "videoUrl": "" }
+          ]
+        }
+      ],
+      "createdAt": "2026-06-02T10:00:00.000Z",
+      "updatedAt": "2026-06-02T10:00:00.000Z"
+    }
+  ]
+}

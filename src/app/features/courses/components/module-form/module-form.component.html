@@ -1,0 +1,179 @@
+<div class="module-card" [class.collapsed]="!isExpanded">
+
+  <!-- Module Header -->
+  <div class="module-header" (click)="toggleExpand()" [attr.aria-expanded]="isExpanded">
+    <div class="module-header__left">
+      <button type="button" class="btn-icon btn-icon--ghost collapse-btn" [attr.aria-label]="isExpanded ? 'Recolher módulo' : 'Expandir módulo'">
+        <svg class="chevron-icon" [class.rotated]="!isExpanded" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      <div class="module-header__info">
+        <span class="module-index">Módulo {{ moduleIndex + 1 }}</span>
+        <span class="module-title-preview">
+          {{ title.value || 'Sem título' }}
+        </span>
+      </div>
+    </div>
+
+    <div class="module-header__right" (click)="$event.stopPropagation()">
+      <span class="badge badge--neutral">{{ lessonCount }} aula{{ lessonCount !== 1 ? 's' : '' }}</span>
+      <button
+        type="button"
+        class="btn-icon btn-icon--danger"
+        (click)="removeModule.emit()"
+        aria-label="Remover módulo"
+        title="Remover módulo"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6l-1 14H6L5 6" />
+          <path d="M10 11v6M14 11v6" />
+          <path d="M9 6V4h6v2" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Module Body -->
+  <div class="module-body" [formGroup]="moduleGroup" *ngIf="isExpanded">
+
+    <div class="form-row">
+      <div class="form-field">
+        <label for="mod-title-{{ moduleIndex }}" class="form-label">
+          Título do Módulo <span class="required-mark">*</span>
+        </label>
+        <input
+          id="mod-title-{{ moduleIndex }}"
+          type="text"
+          class="form-input"
+          formControlName="title"
+          placeholder="Ex: Fundamentos do React"
+          [class.is-invalid]="title.invalid && (title.dirty || title.touched)"
+          autocomplete="off"
+        />
+        <app-validation-message [control]="title" />
+      </div>
+
+      <div class="form-field">
+        <label for="mod-desc-{{ moduleIndex }}" class="form-label">Descrição</label>
+        <input
+          id="mod-desc-{{ moduleIndex }}"
+          type="text"
+          class="form-input"
+          formControlName="description"
+          placeholder="Breve descrição do módulo"
+          autocomplete="off"
+        />
+      </div>
+    </div>
+
+    <!-- Lessons -->
+    <div class="lessons-section">
+      <div class="lessons-header">
+        <h4 class="lessons-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <polygon points="23 7 16 12 23 17 23 7" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+          </svg>
+          Aulas
+        </h4>
+        <button
+          type="button"
+          class="btn btn--ghost btn--sm"
+          (click)="addLesson()"
+          aria-label="Adicionar aula"
+        >
+          + Adicionar Aula
+        </button>
+      </div>
+
+      @if (lessons.length === 0) {
+        <div class="empty-lessons">
+          <p>Nenhuma aula adicionada. Clique em "Adicionar Aula" para começar.</p>
+        </div>
+      }
+
+      <div class="lessons-list" formArrayName="lessons">
+        @for (lessonGroup of lessonGroups; track $index) {
+          <div class="lesson-card" [formGroupName]="$index">
+            <div class="lesson-card__header">
+              <span class="lesson-index">Aula {{ $index + 1 }}</span>
+              <button
+                type="button"
+                class="btn-icon btn-icon--danger btn-icon--sm"
+                (click)="removeLesson($index)"
+                [attr.aria-label]="'Remover aula ' + ($index + 1)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field form-field--grow">
+                <label [for]="'lesson-title-' + moduleIndex + '-' + $index" class="form-label">
+                  Título <span class="required-mark">*</span>
+                </label>
+                <input
+                  [id]="'lesson-title-' + moduleIndex + '-' + $index"
+                  type="text"
+                  class="form-input"
+                  formControlName="title"
+                  placeholder="Ex: Introdução ao JSX"
+                  [class.is-invalid]="getLessonControl(lessonGroup, 'title').invalid && (getLessonControl(lessonGroup, 'title').dirty || getLessonControl(lessonGroup, 'title').touched)"
+                />
+                <app-validation-message [control]="getLessonControl(lessonGroup, 'title')" />
+              </div>
+
+              <div class="form-field form-field--fixed">
+                <label [for]="'lesson-dur-' + moduleIndex + '-' + $index" class="form-label">
+                  Duração (min) <span class="required-mark">*</span>
+                </label>
+                <input
+                  [id]="'lesson-dur-' + moduleIndex + '-' + $index"
+                  type="number"
+                  class="form-input"
+                  formControlName="duration"
+                  placeholder="0"
+                  min="1"
+                  [class.is-invalid]="getLessonControl(lessonGroup, 'duration').invalid && (getLessonControl(lessonGroup, 'duration').dirty || getLessonControl(lessonGroup, 'duration').touched)"
+                />
+                <app-validation-message [control]="getLessonControl(lessonGroup, 'duration')" />
+              </div>
+            </div>
+
+            <div class="form-field">
+              <label [for]="'lesson-desc-' + moduleIndex + '-' + $index" class="form-label">
+                Descrição <span class="required-mark">*</span>
+              </label>
+              <textarea
+                [id]="'lesson-desc-' + moduleIndex + '-' + $index"
+                class="form-input form-input--textarea"
+                formControlName="description"
+                placeholder="Descreva o conteúdo desta aula..."
+                rows="2"
+                [class.is-invalid]="getLessonControl(lessonGroup, 'description').invalid && (getLessonControl(lessonGroup, 'description').dirty || getLessonControl(lessonGroup, 'description').touched)"
+              ></textarea>
+              <app-validation-message [control]="getLessonControl(lessonGroup, 'description')" />
+            </div>
+
+            <div class="form-field">
+              <label [for]="'lesson-video-' + moduleIndex + '-' + $index" class="form-label">URL do Vídeo</label>
+              <input
+                [id]="'lesson-video-' + moduleIndex + '-' + $index"
+                type="url"
+                class="form-input"
+                formControlName="videoUrl"
+                placeholder="https://youtube.com/watch?v=..."
+              />
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+</div>
