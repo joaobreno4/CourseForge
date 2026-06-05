@@ -1,4 +1,4 @@
-name: CI/CD - CourseForge
+name: CI/CD CourseForge
 
 on:
   push:
@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-
-permissions:
-  contents: read
-  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,37 +15,28 @@ env:
   NODE_VERSION: "20"
   BUILD_DIR: dist/course-forge/browser
 
-# =============================================================================
 jobs:
 
-  # ---------------------------------------------------------------------------
-  # JOB 1 - CI: Lint, Test & Build
-  # Runs on every push and PR. Fast-fail: if the build breaks, deploy is skipped.
-  # ---------------------------------------------------------------------------
   ci:
-    name: "Lint / Test / Build"
+    name: Lint and Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Install dependencies
-        # npm ci guarantees exact versions from lock file; --prefer-offline uses cache first
         run: npm ci --prefer-offline
 
       - name: Lint
-        # --if-present skips silently if the lint script is not yet defined
         run: npm run lint --if-present
 
-      - name: Unit tests (ChromeHeadless)
+      - name: Unit tests
         run: npm test -- --watch=false --browsers=ChromeHeadless --code-coverage
 
       - name: Production build
@@ -63,14 +50,8 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  # ---------------------------------------------------------------------------
-  # JOB 2 - DEPLOY: S3 Sync + CloudFront Invalidation
-  # Runs only when:
-  #   (a) the ci job passed, AND
-  #   (b) the event is a direct push to main (PRs do NOT deploy)
-  # ---------------------------------------------------------------------------
   deploy:
-    name: "Deploy to AWS (S3 + CloudFront)"
+    name: Deploy to AWS
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: ci
@@ -78,7 +59,6 @@ jobs:
 
     environment:
       name: production
-      url: https://${{ secrets.CLOUDFRONT_DOMAIN }}
 
     steps:
       - name: Download build artifact
@@ -90,22 +70,11 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ secrets.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      # ---------------------------------------------------------------------------
-      # Two-phase S3 sync strategy:
-      #
-      # Phase 1 - Hashed assets (e.g. main.abc123.js)
-      #   Cache-Control: max-age=31536000,immutable
-      #   Angular CLI produces content-hashed filenames; safe to cache for 1 year.
-      #
-      # Phase 2 - index.html (entry point, no hash)
-      #   Cache-Control: no-cache
-      #   Browser always revalidates; ensures users load the new JS/CSS hashes.
-      # ---------------------------------------------------------------------------
-      - name: "S3 sync: hashed assets (cache 1 year)"
+      - name: S3 sync hashed assets
         run: |
           aws s3 sync "${{ env.BUILD_DIR }}" "s3://${{ secrets.S3_BUCKET_NAME }}" \
             --exclude "index.html" \
@@ -113,7 +82,7 @@ jobs:
             --cache-control "max-age=31536000,immutable" \
             --delete
 
-      - name: "S3 sync: index.html (no-cache)"
+      - name: S3 sync index.html
         run: |
           aws s3 sync "${{ env.BUILD_DIR }}" "s3://${{ secrets.S3_BUCKET_NAME }}" \
             --exclude "*" \
@@ -121,8 +90,6 @@ jobs:
             --include "*.map" \
             --cache-control "no-cache,no-store,must-revalidate"
 
-      # Invalidation forces all CloudFront PoPs to fetch fresh objects on next request.
-      # First 1,000 paths/month are free.
       - name: Invalidate CloudFront cache
         run: |
           INVALIDATION_ID=$(aws cloudfront create-invalidation \
@@ -130,24 +97,21 @@ jobs:
             --paths "/*" \
             --query "Invalidation.Id" \
             --output text)
-          echo "Invalidation ID: $INVALIDATION_ID"
           echo "INVALIDATION_ID=$INVALIDATION_ID" >> "$GITHUB_ENV"
 
-      - name: Wait for invalidation to complete
+      - name: Wait for invalidation
         run: |
           aws cloudfront wait invalidation-completed \
             --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" \
             --id "$INVALIDATION_ID"
         timeout-minutes: 5
 
-      - name: Write deploy summary
+      - name: Deploy summary
         run: |
-          echo "### Deploy successful" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Deploy OK" >> "$GITHUB_STEP_SUMMARY"
           echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Commit | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Branch | \`${{ github.ref_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| S3 Bucket | \`${{ secrets.S3_BUCKET_NAME }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Bucket | \`${{ secrets.S3_BUCKET_NAME }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| CF Invalidation | \`$INVALIDATION_ID\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| URL | https://${{ secrets.CLOUDFRONT_DOMAIN }} |" >> "$GITHUB_STEP_SUMMARY"
